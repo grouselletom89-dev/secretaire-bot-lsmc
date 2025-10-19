@@ -1,7 +1,8 @@
 import discord
 import os
 from dotenv import load_dotenv
-from datetime import datetime # On importe datetime pour l'heure de mise à jour
+from datetime import datetime
+import pytz # <-- NOUVELLE IMPORTATION
 
 # --- CHARGEMENT DES VARIABLES ---
 load_dotenv()
@@ -28,11 +29,9 @@ EMS_ROLES_IDS = [
 EMS_ROLES_IDS_SET = set(EMS_ROLES_IDS)
 
 # =======================================================================
-# --- CONFIGURATION HIÉRARCHIE (Mise à jour) ---
+# --- CONFIGURATION HIÉRARCHIE ---
 # =======================================================================
 HIERARCHIE_CHANNEL_ID = 1388975591117557941
-
-# Liste des ID de rôles pour la Hiérarchie (mise à jour)
 HIERARCHIE_ROLES_IDS = [
     1349780660138541078, # Directeur de Centre
     1388532898705178746, # Co-Directeur
@@ -53,8 +52,8 @@ hierarchie_message = None
 
 # --- CONFIGURATION DES INTENTS ---
 intents = discord.Intents.default()
-intents.members = True          # OBLIGATOIRE pour on_member_update et guild.get_role
-intents.message_content = True  # Pour les commandes !ping
+intents.members = True          
+intents.message_content = True  
 
 # --- INITIALISATION DU BOT ---
 client = discord.Client(intents=intents)
@@ -90,45 +89,60 @@ async def update_organigram_ems():
         print(f"Erreur lors de l'édition du message EMS : {e}")
 
 # =======================================================================
-# --- FONCTION : Mettre à jour la Hiérarchie ---
+# --- FONCTION : Mettre à jour la Hiérarchie (MODIFIÉE) ---
 # =======================================================================
 async def update_hierarchie():
     global hierarchie_message
     if hierarchie_message is None: return
 
     guild = hierarchie_message.guild
-    # Utilisation de "###" pour un titre plus grand, comme sur l'image
     lines = ["### Hiérarchie\n"] 
+
+    members_deja_affiches = set()
 
     for role_id in HIERARCHIE_ROLES_IDS:
         role = guild.get_role(role_id)
         
         if role is not None:
-            # Ajoute la mention du rôle (ex: @ | Directeur de Centre)
             lines.append(f"{role.mention}")
             
-            members = role.members
-            if not members:
-                # Utilise le format ">" pour indenter, comme sur l'image
+            tous_les_membres_du_role = role.members
+            membres_a_afficher = []
+            
+            for member in tous_les_membres_du_role:
+                if member.id not in members_deja_affiches:
+                    membres_a_afficher.append(member)
+                    members_deja_affiches.add(member.id)
+            
+            if not membres_a_afficher:
                 lines.append("> Aucun membre\n") 
             else:
-                # Construit la liste des mentions membres
-                member_mentions = [member.mention for member in members]
-                # Formatage comme sur l'image (ex: > @User1 | @User2)
+                member_mentions = [member.mention for member in membres_a_afficher]
                 lines.append(f"> {' | '.join(member_mentions)}\n")
         else:
             print(f"ATTENTION (Hiérarchie) : Le rôle ID {role_id} est introuvable.")
             lines.append(f"`(Rôle ID {role_id} introuvable)`\n")
 
-    # Ajout de la date de mise à jour
-    now = datetime.now()
-    # Formatage : Jour/Mois/Année à HHhMM (ex: 19/10/2025 à 12H30)
-    # Note: L'heure est en UTC (temps universel) car le bot tourne sur Railway
-    timestamp = now.strftime("%d/%m/%Y à %HH%M")
-    lines.append(f"\n*Mise à jour le {timestamp} (UTC)*")
+    # *** PARTIE MODIFIÉE POUR L'HEURE FRANÇAISE ***
+    try:
+        # 1. Définir le fuseau horaire de Paris
+        paris_tz = pytz.timezone("Europe/Paris")
+        
+        # 2. Obtenir l'heure actuelle dans ce fuseau horaire
+        now = datetime.now(paris_tz)
+        
+        # 3. Formater la date
+        timestamp = now.strftime("%d/%m/%Y à %HH%M")
+        
+        # 4. Changer le texte de (UTC) à (Heure de Paris)
+        lines.append(f"\n*Mise à jour le {timestamp} (Heure de Paris)*")
+    except Exception as e:
+        print(f"Erreur lors de la récupération de l'heure : {e}")
+        # Solution de secours si pytz échoue
+        lines.append(f"\n*Mise à jour (heure non disponible)*")
+
 
     try:
-        # On autorise les mentions de rôles et d'utilisateurs
         allowed_mentions = discord.AllowedMentions(everyone=False, users=True, roles=True)
         await hierarchie_message.edit(content="\n".join(lines), allowed_mentions=allowed_mentions)
     except Exception as e:
@@ -183,11 +197,11 @@ async def on_member_update(before, after):
     """Appelé quand un membre est mis à jour (rôles, pseudo, etc.)."""
     
     if before.roles == after.roles:
-        return # Pas de changement de rôle
+        return 
 
     roles_modifies = set(before.roles) ^ set(after.roles)
     
-    # On vérifie si le changement concerne l'EMS
+    # Vérification pour EMS
     ems_pertinent = False
     for role in roles_modifies:
         if role.id in EMS_ROLES_IDS_SET:
@@ -198,7 +212,7 @@ async def on_member_update(before, after):
         print(f"Mise à jour EMS (membre : {after.display_name}).")
         await update_organigram_ems()
 
-    # On vérifie si le changement concerne la Hiérarchie
+    # Vérification pour Hiérarchie
     hierarchie_pertinente = False
     for role in roles_modifies:
         if role.id in HIERARCHIE_ROLES_IDS_SET:
