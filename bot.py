@@ -16,20 +16,20 @@ if TOKEN is None:
 # ID du salon où le message de l'organigramme doit être
 TARGET_CHANNEL_ID = 1418570285841645588
 
-# On utilise une LISTE de tuples (ID_ROLE, TEXTE_A_AFFICHER)
-ROLES_A_SUIVRE_CONFIG = [
-    (1417261983773753518, "🧬 | Responsable Morgue :"),
-    (1418566218171945050, "🚁 | Responsable Hélico :"),
-    (1388532907592908871, "🧠 | Responsable Psychologie :"),
-    (1417670797534957681, "🧪 | Responsable Labo :"),
-    (1417671433412284426, "🩹 | Responsable Advanced Medecine :"),
-    (1418564885662666853, "🅾️ | Responsable E.M.T. :"),
-    (1388532909434212362, "📕 | Responsable du CNOM :"),
-    (1388532912734867496, "🗂️ | Responsable Recrutement / Formations :")
+# On utilise maintenant une simple LISTE D'IDs pour garder l'ordre.
+ROLES_A_SUIVRE_IDS = [
+    1417261983773753518, # Responsable Morgue
+    1418566218171945050, # Responsable Hélico
+    1388532907592908871, # Responsable Psychologie
+    1417670797534957681, # Responsable Labo
+    1417671433412284426, # Responsable Advanced Medecine
+    1418564885662666853, # Responsable E.M.T.
+    1388532909434212362, # Responsable du CNOM
+    1388532912734867496  # Responsable Recrutement / Formations
 ]
 
-# On crée un 'set' (ensemble) de tous les ID de rôles valides.
-ROLE_IDS_A_SUIVRE = {role_id for role_id, text in ROLES_A_SUIVRE_CONFIG if role_id is not None}
+# On crée un 'set' (ensemble) pour les vérifications rapides
+ROLE_IDS_A_SUIVRE_SET = set(ROLES_A_SUIVRE_IDS)
 
 # --- VARIABLES GLOBALES ---
 organigram_message = None
@@ -56,28 +56,26 @@ async def update_organigram():
     # --- Construction du message ---
     lines.append("**Liste des Gérants et leurs Pôles :**\n")
     
-    # LA LIGNE `@ ────── Pôle EMS ──────` A ÉTÉ SUPPRIMÉE ICI
-
-    # Boucle sur notre LISTE de configuration pour garder l'ordre
-    for role_id, display_text in ROLES_A_SUIVRE_CONFIG:
+    # Boucle sur notre LISTE d'IDs pour garder l'ordre
+    for role_id in ROLES_A_SUIVRE_IDS:
         
+        role = guild.get_role(role_id)
         mentions = " " # Par défaut, la ligne est vide
+        display_name = f"`(Rôle ID {role_id} introuvable)`"
 
-        if role_id is None:
-            mentions = " "
+        if role is not None:
+            # Si le rôle est trouvé, on utilise sa mention
+            display_name = role.mention
+            
+            # On cherche les membres qui ont ce rôle
+            members = role.members
+            if members:
+                mentions = " / ".join([member.mention for member in members])
         else:
-            role = guild.get_role(role_id)
+            print(f"ATTENTION : Le rôle ID {role_id} est introuvable sur le serveur.")
         
-            if role is None:
-                print(f"ATTENTION : Le rôle ID {role_id} est introuvable sur le serveur.")
-                mentions = "`(Rôle introuvable)`"
-            else:
-                members = role.members
-                if members:
-                    mentions = " / ".join([member.mention for member in members])
-        
-        # Ajoute la ligne au message (avec l'emoji)
-        lines.append(f"{display_text} {mentions}")
+        # Ajoute la ligne au message (ex: @Responsable Morgue : @User1)
+        lines.append(f"{display_name} : {mentions}")
 
     # Combine toutes les lignes en un seul message
     content = "\n".join(lines)
@@ -133,7 +131,8 @@ async def on_member_update(before, after):
     
     pertinent = False
     for role in roles_modifies:
-        if role.id in ROLE_IDS_A_SUIVRE:
+        # On vérifie si l'ID du rôle modifié est dans notre set
+        if role.id in ROLE_IDS_A_SUIVRE_SET:
             pertinent = True
             break 
 
