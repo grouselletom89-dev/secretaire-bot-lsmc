@@ -1,6 +1,7 @@
 import discord
 import os
 from dotenv import load_dotenv
+from datetime import datetime # On importe datetime pour l'heure de mise à jour
 
 # --- CHARGEMENT DES VARIABLES ---
 load_dotenv()
@@ -8,16 +9,13 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 if TOKEN is None:
     print("ERREUR : Le 'DISCORD_TOKEN' n'est pas trouvé.")
-    print("Veuillez vérifier votre fichier .env ou les variables d'environnement sur Railway.")
     exit()
 
-# --- CONFIGURATION ---
-
-# ID du salon où le message de l'organigramme doit être
-TARGET_CHANNEL_ID = 1418570285841645588
-
-# On utilise maintenant une simple LISTE D'IDs pour garder l'ordre.
-ROLES_A_SUIVRE_IDS = [
+# =======================================================================
+# --- CONFIGURATION ORGANI. EMS ---
+# =======================================================================
+EMS_CHANNEL_ID = 1418570285841645588
+EMS_ROLES_IDS = [
     1417261983773753518, # Responsable Morgue
     1418566218171945050, # Responsable Hélico
     1388532907592908871, # Responsable Psychologie
@@ -27,12 +25,31 @@ ROLES_A_SUIVRE_IDS = [
     1388532909434212362, # Responsable du CNOM
     1388532912734867496  # Responsable Recrutement / Formations
 ]
+EMS_ROLES_IDS_SET = set(EMS_ROLES_IDS)
 
-# On crée un 'set' (ensemble) pour les vérifications rapides
-ROLE_IDS_A_SUIVRE_SET = set(ROLES_A_SUIVRE_IDS)
+# =======================================================================
+# --- CONFIGURATION HIÉRARCHIE (Mise à jour) ---
+# =======================================================================
+HIERARCHIE_CHANNEL_ID = 1388975591117557941
+
+# Liste des ID de rôles pour la Hiérarchie (mise à jour)
+HIERARCHIE_ROLES_IDS = [
+    1349780660138541078, # Directeur de Centre
+    1388532898705178746, # Co-Directeur
+    1388532894582181939, # Directeur des ressources Humaines
+    1388532896309973052, # Ressource Humaine
+    1388532899229339820, # Chef de service
+    1388532949753925672, # Médecin Chef
+    1388532896993906772, # Médecin
+    1388532900571386076, # Infirmier
+    1388532902949683401  # Ambulancier
+]
+HIERARCHIE_ROLES_IDS_SET = set(HIERARCHIE_ROLES_IDS)
+
 
 # --- VARIABLES GLOBALES ---
-organigram_message = None
+ems_organigram_message = None
+hierarchie_message = None
 
 # --- CONFIGURATION DES INTENTS ---
 intents = discord.Intents.default()
@@ -42,82 +59,123 @@ intents.message_content = True  # Pour les commandes !ping
 # --- INITIALISATION DU BOT ---
 client = discord.Client(intents=intents)
 
-# --- FONCTION : Mettre à jour l'organigramme ---
+# =======================================================================
+# --- FONCTION : Mettre à jour l'organigramme EMS ---
+# =======================================================================
+async def update_organigram_ems():
+    global ems_organigram_message
+    if ems_organigram_message is None: return
 
-async def update_organigram():
-    global organigram_message
-    if organigram_message is None:
-        print("Erreur : Tentative de mise à jour sans message d'organigramme.")
-        return
+    guild = ems_organigram_message.guild
+    lines = ["**Liste des Gérants et leurs Pôles :**\n"]
 
-    guild = organigram_message.guild  # Récupère le serveur
-    lines = [] # On va construire le message ligne par ligne
-
-    # --- Construction du message ---
-    lines.append("**Liste des Gérants et leurs Pôles :**\n")
-    
-    # Boucle sur notre LISTE d'IDs pour garder l'ordre
-    for role_id in ROLES_A_SUIVRE_IDS:
-        
+    for role_id in EMS_ROLES_IDS:
         role = guild.get_role(role_id)
-        mentions = " " # Par défaut, la ligne est vide
+        mentions = " "
         display_name = f"`(Rôle ID {role_id} introuvable)`"
 
         if role is not None:
-            # Si le rôle est trouvé, on utilise sa mention
             display_name = role.mention
-            
-            # On cherche les membres qui ont ce rôle
             members = role.members
             if members:
                 mentions = " / ".join([member.mention for member in members])
         else:
-            print(f"ATTENTION : Le rôle ID {role_id} est introuvable sur le serveur.")
+            print(f"ATTENTION (EMS) : Le rôle ID {role_id} est introuvable.")
         
-        # Ajoute la ligne au message (ex: @Responsable Morgue : @User1)
         lines.append(f"{display_name} : {mentions}")
 
-    # Combine toutes les lignes en un seul message
-    content = "\n".join(lines)
-    
-    # Edite le message sur Discord
     try:
-        await organigram_message.edit(content=content)
+        await ems_organigram_message.edit(content="\n".join(lines))
     except Exception as e:
-        print(f"Erreur lors de l'édition du message : {e}")
+        print(f"Erreur lors de l'édition du message EMS : {e}")
+
+# =======================================================================
+# --- FONCTION : Mettre à jour la Hiérarchie ---
+# =======================================================================
+async def update_hierarchie():
+    global hierarchie_message
+    if hierarchie_message is None: return
+
+    guild = hierarchie_message.guild
+    # Utilisation de "###" pour un titre plus grand, comme sur l'image
+    lines = ["### Hiérarchie\n"] 
+
+    for role_id in HIERARCHIE_ROLES_IDS:
+        role = guild.get_role(role_id)
+        
+        if role is not None:
+            # Ajoute la mention du rôle (ex: @ | Directeur de Centre)
+            lines.append(f"{role.mention}")
+            
+            members = role.members
+            if not members:
+                # Utilise le format ">" pour indenter, comme sur l'image
+                lines.append("> Aucun membre\n") 
+            else:
+                # Construit la liste des mentions membres
+                member_mentions = [member.mention for member in members]
+                # Formatage comme sur l'image (ex: > @User1 | @User2)
+                lines.append(f"> {' | '.join(member_mentions)}\n")
+        else:
+            print(f"ATTENTION (Hiérarchie) : Le rôle ID {role_id} est introuvable.")
+            lines.append(f"`(Rôle ID {role_id} introuvable)`\n")
+
+    # Ajout de la date de mise à jour
+    now = datetime.now()
+    # Formatage : Jour/Mois/Année à HHhMM (ex: 19/10/2025 à 12H30)
+    # Note: L'heure est en UTC (temps universel) car le bot tourne sur Railway
+    timestamp = now.strftime("%d/%m/%Y à %HH%M")
+    lines.append(f"\n*Mise à jour le {timestamp} (UTC)*")
+
+    try:
+        # On autorise les mentions de rôles et d'utilisateurs
+        allowed_mentions = discord.AllowedMentions(everyone=False, users=True, roles=True)
+        await hierarchie_message.edit(content="\n".join(lines), allowed_mentions=allowed_mentions)
+    except Exception as e:
+        print(f"Erreur lors de l'édition du message Hiérarchie : {e}")
 
 
+# =======================================================================
 # --- ÉVÉNEMENTS DISCORD ---
+# =======================================================================
 
 @client.event
 async def on_ready():
     """Appelé quand le bot est connecté et prêt."""
-    global organigram_message
+    global ems_organigram_message, hierarchie_message
     
     print(f'Connecté en tant que {client.user}!')
     print('------')
 
-    channel = client.get_channel(TARGET_CHANNEL_ID)
-    
-    if channel is None:
-        print(f"ERREUR CRITIQUE : Le canal avec l'ID {TARGET_CHANNEL_ID} est introuvable.")
-        return
+    # --- Initialisation Message 1: Organigramme EMS ---
+    channel_ems = client.get_channel(EMS_CHANNEL_ID)
+    if channel_ems:
+        print(f"Nettoyage du canal EMS #{channel_ems.name}...")
+        try:
+            await channel_ems.purge(limit=100, check=lambda m: m.author == client.user)
+            ems_organigram_message = await channel_ems.send("Initialisation EMS...")
+            await update_organigram_ems()
+            print("Organigramme EMS initialisé.")
+        except Exception as e:
+            print(f"Erreur lors de l'init EMS : {e}")
+    else:
+        print(f"ERREUR CRITIQUE : Canal EMS ID {EMS_CHANNEL_ID} introuvable.")
 
-    print(f"Recherche du message dans le canal #{channel.name}...")
+    # --- Initialisation Message 2: Hiérarchie ---
+    channel_hierarchie = client.get_channel(HIERARCHIE_CHANNEL_ID)
+    if channel_hierarchie:
+        print(f"Nettoyage du canal Hiérarchie #{channel_hierarchie.name}...")
+        try:
+            await channel_hierarchie.purge(limit=100, check=lambda m: m.author == client.user)
+            hierarchie_message = await channel_hierarchie.send("Initialisation Hiérarchie...")
+            await update_hierarchie()
+            print("Hiérarchie initialisée.")
+        except Exception as e:
+            print(f"Erreur lors de l'init Hiérarchie : {e}")
+    else:
+        print(f"ERREUR CRITIQUE : Canal Hiérarchie ID {HIERARCHIE_CHANNEL_ID} introuvable.")
     
-    try:
-        await channel.purge(limit=100, check=lambda m: m.author == client.user)
-        print("Anciens messages du bot nettoyés.")
-    except discord.errors.Forbidden:
-        print("ERREUR : Le bot n'a pas la permission 'Gérer les messages' pour nettoyer le salon.")
-    except Exception as e:
-        print(f"Erreur lors du nettoyage : {e}")
-
-    organigram_message = await channel.send("Initialisation de la liste des pôles...")
-    print(f"Message d'organigramme créé (ID: {organigram_message.id}).")
-    
-    await update_organigram()
-    print("Organigramme initialisé et mis à jour.")
+    print("------\nBot prêt !")
 
 
 @client.event
@@ -125,32 +183,39 @@ async def on_member_update(before, after):
     """Appelé quand un membre est mis à jour (rôles, pseudo, etc.)."""
     
     if before.roles == after.roles:
-        return 
+        return # Pas de changement de rôle
 
     roles_modifies = set(before.roles) ^ set(after.roles)
     
-    pertinent = False
+    # On vérifie si le changement concerne l'EMS
+    ems_pertinent = False
     for role in roles_modifies:
-        # On vérifie si l'ID du rôle modifié est dans notre set
-        if role.id in ROLE_IDS_A_SUIVRE_SET:
-            pertinent = True
-            break 
+        if role.id in EMS_ROLES_IDS_SET:
+            ems_pertinent = True
+            break
+            
+    if ems_pertinent:
+        print(f"Mise à jour EMS (membre : {after.display_name}).")
+        await update_organigram_ems()
 
-    if pertinent:
-        print(f"Mise à jour de l'organigramme car {after.display_name} a eu un changement de rôle.")
-        await update_organigram()
+    # On vérifie si le changement concerne la Hiérarchie
+    hierarchie_pertinente = False
+    for role in roles_modifies:
+        if role.id in HIERARCHIE_ROLES_IDS_SET:
+            hierarchie_pertinente = True
+            break
+            
+    if hierarchie_pertinente:
+        print(f"Mise à jour Hiérarchie (membre : {after.display_name}).")
+        await update_hierarchie()
 
 
 @client.event
 async def on_message(message):
     """Appelé à chaque fois qu'un message est envoyé."""
-    
-    if message.author == client.user:
-        return
-
+    if message.author == client.user: return
     if message.content.startswith('!ping'):
         await message.channel.send('Pong!')
-
 
 # --- DÉMARRAGE DU BOT ---
 try:
