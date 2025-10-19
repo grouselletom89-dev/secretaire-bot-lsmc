@@ -1,0 +1,11 @@
+# Fichier d'environnement local - NE JAMAIS ENVOYER SUR GITHUB
+.env
+
+# Fichiers de cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Fichiers de configuration d'IDE
+.vscode/
+.idea/
