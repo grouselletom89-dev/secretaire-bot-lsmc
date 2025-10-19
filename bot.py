@@ -17,22 +17,18 @@ if TOKEN is None:
 TARGET_CHANNEL_ID = 1418570285841645588
 
 # On utilise une LISTE de tuples (ID_ROLE, TEXTE_A_AFFICHER)
-# C'est la version CORRIGÉE avec vos derniers IDs
 ROLES_A_SUIVRE_CONFIG = [
     (1417261983773753518, "🧬 | Responsable Morgue :"),
     (1418566218171945050, "🚁 | Responsable Hélico :"),
     (1388532907592908871, "🧠 | Responsable Psychologie :"),
     (1417670797534957681, "🧪 | Responsable Labo :"),
-    (1417671433412284426, "🩹 | Responsable Advanced Medecine :"), # ID Corrigé
-    (1418564885662666853, "🅾️ | Responsable E.M.T. :"),           # ID Corrigé
+    (1417671433412284426, "🩹 | Responsable Advanced Medecine :"),
+    (1418564885662666853, "🅾️ | Responsable E.M.T. :"),
     (1388532909434212362, "📕 | Responsable du CNOM :"),
     (1388532912734867496, "🗂️ | Responsable Recrutement / Formations :")
 ]
 
-# (J'ai ajouté les emojis de votre premier screenshot pour que ça corresponde)
-
 # On crée un 'set' (ensemble) de tous les ID de rôles valides.
-# C'est BEAUCOUP plus rapide pour vérifier si un rôle nous intéresse
 ROLE_IDS_A_SUIVRE = {role_id for role_id, text in ROLES_A_SUIVRE_CONFIG if role_id is not None}
 
 # --- VARIABLES GLOBALES ---
@@ -59,8 +55,8 @@ async def update_organigram():
 
     # --- Construction du message ---
     lines.append("**Liste des Gérants et leurs Pôles :**\n")
-    # J'utilise le style de votre screenshot
-    lines.append("`@ ────── Pôle EMS ──────`\n")
+    
+    # LA LIGNE `@ ────── Pôle EMS ──────` A ÉTÉ SUPPRIMÉE ICI
 
     # Boucle sur notre LISTE de configuration pour garder l'ordre
     for role_id, display_text in ROLES_A_SUIVRE_CONFIG:
