@@ -2,7 +2,7 @@ import discord
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-import pytz # <-- NOUVELLE IMPORTATION
+import pytz 
 
 # --- CHARGEMENT DES VARIABLES ---
 load_dotenv()
@@ -44,6 +44,26 @@ HIERARCHIE_ROLES_IDS = [
     1388532902949683401  # Ambulancier
 ]
 HIERARCHIE_ROLES_IDS_SET = set(HIERARCHIE_ROLES_IDS)
+
+# =======================================================================
+# --- NOUVEAU : CONFIGURATION DU SERMENT ---
+# =======================================================================
+SERMENT_CHANNEL_ID = 1370016292316123186
+SERMENT_TEXT = """« Je jure de consacrer ma vie à la pratique de l’art médical avec conscience, dignité et humanité.
+
+Je m’engage à mettre mes connaissances et mes compétences au service de la vie humaine, en priorité pour le bien-être de mes patients, sans jamais chercher à nuire ou à infliger volontairement un préjudice.
+
+Je respecterai la vie humaine dès sa conception, en toutes circonstances, et je traiterai chaque patient avec équité, respect et compassion.
+
+Je préserverai la confidentialité de tous ceux qui me confient leur santé et leur vie, en honorant leur confiance.
+
+Je reconnais et respecterai mes maîtres, mes collègues et tous ceux qui m’ont précédé dans l’art de guérir, et je m’efforcerai de partager mon savoir avec les générations futures pour que le savoir médical continue de progresser.
+
+Je m’engage à rester humble et à perfectionner mes compétences tout au long de ma carrière, en tenant compte des avancées scientifiques et des besoins de mes patients.
+
+Je pratiquerai mon métier avec honnêteté, intégrité et responsabilité, en veillant toujours à ce que ma conduite soit guidée par l’éthique, le respect de la vie et la dignité humaine.
+
+Que je sois honoré si je respecte ce serment, et que je sois confronté à l’inverse si je le viole. Que mes actes soient toujours au service de la santé et de l’humanité. »"""
 
 
 # --- VARIABLES GLOBALES ---
@@ -89,7 +109,7 @@ async def update_organigram_ems():
         print(f"Erreur lors de l'édition du message EMS : {e}")
 
 # =======================================================================
-# --- FONCTION : Mettre à jour la Hiérarchie (MODIFIÉE) ---
+# --- FONCTION : Mettre à jour la Hiérarchie ---
 # =======================================================================
 async def update_hierarchie():
     global hierarchie_message
@@ -123,24 +143,14 @@ async def update_hierarchie():
             print(f"ATTENTION (Hiérarchie) : Le rôle ID {role_id} est introuvable.")
             lines.append(f"`(Rôle ID {role_id} introuvable)`\n")
 
-    # *** PARTIE MODIFIÉE POUR L'HEURE FRANÇAISE ***
     try:
-        # 1. Définir le fuseau horaire de Paris
         paris_tz = pytz.timezone("Europe/Paris")
-        
-        # 2. Obtenir l'heure actuelle dans ce fuseau horaire
         now = datetime.now(paris_tz)
-        
-        # 3. Formater la date
         timestamp = now.strftime("%d/%m/%Y à %HH%M")
-        
-        # 4. Changer le texte de (UTC) à (Heure de Paris)
         lines.append(f"\n*Mise à jour le {timestamp} (Heure de Paris)*")
     except Exception as e:
         print(f"Erreur lors de la récupération de l'heure : {e}")
-        # Solution de secours si pytz échoue
         lines.append(f"\n*Mise à jour (heure non disponible)*")
-
 
     try:
         allowed_mentions = discord.AllowedMentions(everyone=False, users=True, roles=True)
@@ -188,6 +198,21 @@ async def on_ready():
             print(f"Erreur lors de l'init Hiérarchie : {e}")
     else:
         print(f"ERREUR CRITIQUE : Canal Hiérarchie ID {HIERARCHIE_CHANNEL_ID} introuvable.")
+
+    # --- NOUVEAU : Initialisation Message 3: Serment ---
+    channel_serment = client.get_channel(SERMENT_CHANNEL_ID)
+    if channel_serment:
+        print(f"Nettoyage du canal Serment #{channel_serment.name}...")
+        try:
+            # On nettoie les anciens messages du bot
+            await channel_serment.purge(limit=100, check=lambda m: m.author == client.user)
+            # On poste le nouveau
+            await channel_serment.send(SERMENT_TEXT)
+            print("Serment d'Hippocrate posté.")
+        except Exception as e:
+            print(f"Erreur lors de l'init Serment : {e}")
+    else:
+        print(f"ERREUR CRITIQUE : Canal Serment ID {SERMENT_CHANNEL_ID} introuvable.")
     
     print("------\nBot prêt !")
 
