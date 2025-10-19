@@ -46,10 +46,14 @@ HIERARCHIE_ROLES_IDS = [
 HIERARCHIE_ROLES_IDS_SET = set(HIERARCHIE_ROLES_IDS)
 
 # =======================================================================
-# --- NOUVEAU : CONFIGURATION DU SERMENT ---
+# --- CONFIGURATION DU SERMENT (MODIFIÉE) ---
 # =======================================================================
 SERMENT_CHANNEL_ID = 1370016292316123186
-SERMENT_TEXT = """« Je jure de consacrer ma vie à la pratique de l’art médical avec conscience, dignité et humanité.
+
+# Ajout du titre ### Serment d’Hippocrate
+SERMENT_TEXT = """### Serment d’Hippocrate
+
+« Je jure de consacrer ma vie à la pratique de l’art médical avec conscience, dignité et humanité.
 
 Je m’engage à mettre mes connaissances et mes compétences au service de la vie humaine, en priorité pour le bien-être de mes patients, sans jamais chercher à nuire ou à infliger volontairement un préjudice.
 
@@ -199,14 +203,12 @@ async def on_ready():
     else:
         print(f"ERREUR CRITIQUE : Canal Hiérarchie ID {HIERARCHIE_CHANNEL_ID} introuvable.")
 
-    # --- NOUVEAU : Initialisation Message 3: Serment ---
+    # --- Initialisation Message 3: Serment ---
     channel_serment = client.get_channel(SERMENT_CHANNEL_ID)
     if channel_serment:
         print(f"Nettoyage du canal Serment #{channel_serment.name}...")
         try:
-            # On nettoie les anciens messages du bot
             await channel_serment.purge(limit=100, check=lambda m: m.author == client.user)
-            # On poste le nouveau
             await channel_serment.send(SERMENT_TEXT)
             print("Serment d'Hippocrate posté.")
         except Exception as e:
